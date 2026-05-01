@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FocusBoard
 
-## Getting Started
+Dashboard personal de productividad visual construido con Next.js, Tailwind CSS, shadcn/ui, Framer Motion y Supabase.
 
-First, run the development server:
+## Desarrollo local
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev -- -p 3005
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abre [http://localhost:3005](http://localhost:3005).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Variables de entorno
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copia `.env.example` a `.env.local` y rellena:
 
-## Learn More
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://TU-PROYECTO.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx
+```
 
-To learn more about Next.js, take a look at the following resources:
+Usa solo la publishable key de Supabase. No pongas `service_role`, `sb_secret` ni claves privadas en variables `NEXT_PUBLIC_*`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Supabase
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+La guía completa está en [SUPABASE_DEPLOYMENT.md](./SUPABASE_DEPLOYMENT.md).
 
-## Deploy on Vercel
+Resumen:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Crea un proyecto en Supabase.
+2. Ejecuta `supabase/schema.sql` en el SQL Editor.
+3. Configura Auth con las URLs de localhost y Vercel.
+4. Añade las variables de entorno en local y en Vercel.
+5. Despliega en Vercel.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Comprobaciones
+
+```bash
+npm run lint
+npx tsc --noEmit
+npm run build
+```
+
+En este workspace `npm run build` puede necesitar permisos del entorno local, pero debe ejecutarse en Vercel durante el despliegue.
