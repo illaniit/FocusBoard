@@ -387,7 +387,22 @@ export function FocusBoardApp() {
   };
 
   const resetBoard = () => {
-    setBoard(initialFocusBoard);
+    const nextBoard = auth.localMode ? initialFocusBoard : emptyFocusBoard;
+
+    setConfirmAction({
+      title: auth.localMode ? "Reiniciar demo" : "Empezar limpio",
+      description: auth.localMode
+        ? "Volverás a cargar los datos de ejemplo del modo invitado."
+        : "Se vaciarán tareas, asignaturas, proyectos, hábitos y calendario de esta cuenta. Tus nuevos datos empezarán desde cero.",
+      confirmLabel: auth.localMode ? "Reiniciar demo" : "Vaciar mi tablero",
+      onConfirm: () => {
+        setBoard(nextBoard);
+        window.localStorage.setItem(storageKey, JSON.stringify(nextBoard));
+        setSyncLabel(auth.localMode ? "Demo reiniciada" : "Tablero vacío · sincronizando");
+        setRecommendationOpen(false);
+        setFilters({ priority: "all", query: "", status: "all" });
+      },
+    });
   };
 
   const toggleHabitToday = (habitId: string) => {
@@ -488,10 +503,10 @@ export function FocusBoardApp() {
 
   return (
     <main className="relative isolate min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#67e8f9_0,transparent_32%),radial-gradient(circle_at_80%_10%,#fde68a_0,transparent_28%),linear-gradient(135deg,#f8fafc_0%,#eef2ff_36%,#ecfeff_68%,#fff7ed_100%)] text-slate-950 dark:bg-[radial-gradient(circle_at_top_left,#0e7490_0,transparent_32%),radial-gradient(circle_at_80%_10%,#854d0e_0,transparent_26%),linear-gradient(135deg,#09090b_0%,#111827_38%,#0f172a_70%,#18181b_100%)] dark:text-zinc-50">
-      <div className="relative z-10 flex min-h-screen w-full">
+      <div className="relative z-10 min-h-screen w-full lg:flex">
         <DesktopSidebar activeView={view} onViewChange={setView} />
 
-        <section className="flex min-w-0 flex-1 flex-col">
+        <section className="flex min-w-0 flex-1 flex-col lg:pl-72">
           <TopBar
             activeView={view}
             onViewChange={setView}
@@ -530,6 +545,7 @@ export function FocusBoardApp() {
                   onStartTask={(taskId) => moveTask(taskId, "in-progress")}
                   onCompleteTask={completeTask}
                   onReset={resetBoard}
+                  resetLabel={auth.localMode ? "Reiniciar demo" : "Empezar limpio"}
                 />
               )}
               {view === "today" && (
@@ -1260,7 +1276,7 @@ function DesktopSidebar({
   onViewChange: (view: View) => void;
 }) {
   return (
-    <aside className="sticky top-0 hidden h-screen w-72 shrink-0 border-r border-black/10 bg-white/55 px-4 py-5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/55 lg:block">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 overflow-y-auto border-r border-black/10 bg-white/70 px-4 py-5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/80 lg:block">
       <Brand />
       <nav className="mt-8 space-y-1">
         {navItems.map((item) => {
@@ -1520,6 +1536,7 @@ function DashboardView({
   onStartTask,
   onCompleteTask,
   onReset,
+  resetLabel,
 }: {
   board: FocusBoardState;
   stats: ReturnType<typeof createStats>;
@@ -1529,6 +1546,7 @@ function DashboardView({
   onStartTask: (taskId: string) => void;
   onCompleteTask: (taskId: string) => void;
   onReset: () => void;
+  resetLabel: string;
 }) {
   const upcoming = board.tasks
     .filter((task) => task.status !== "done")
@@ -1557,7 +1575,7 @@ function DashboardView({
                 ¿Qué hago ahora?
               </Button>
               <Button variant="outline" onClick={onReset}>
-                Reiniciar demo
+                {resetLabel}
               </Button>
             </div>
           </div>
