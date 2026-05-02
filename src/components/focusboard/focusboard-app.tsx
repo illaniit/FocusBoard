@@ -497,6 +497,7 @@ export function FocusBoardApp() {
             onViewChange={setView}
             syncLabel={displayedSyncLabel}
             userEmail={auth.user?.email}
+            isGuest={auth.localMode}
             onSignOut={auth.signOut}
             theme={activeTheme}
             onThemeToggle={() => setTheme(activeTheme === "dark" ? "light" : "dark")}
@@ -1303,6 +1304,7 @@ function TopBar({
   onViewChange,
   syncLabel,
   userEmail,
+  isGuest,
   onSignOut,
   theme,
   onThemeToggle,
@@ -1313,6 +1315,7 @@ function TopBar({
   onViewChange: (view: View) => void;
   syncLabel: string;
   userEmail?: string;
+  isGuest: boolean;
   onSignOut: () => void;
   theme?: string;
   onThemeToggle: () => void;
@@ -1375,13 +1378,13 @@ function TopBar({
           >
             <span className="truncate">{syncLabel}</span>
           </Badge>
-          {userEmail && (
+          {(userEmail || isGuest) && (
             <Badge
               variant="outline"
               className="hidden h-7 max-w-[220px] border-emerald-400/30 bg-emerald-400/10 px-3 text-emerald-700 dark:text-emerald-200 md:inline-flex"
             >
               <ShieldCheck className="size-3" />
-              <span className="truncate">{userEmail}</span>
+              <span className="truncate">{userEmail ?? "Modo invitado"}</span>
             </Badge>
           )}
           <Tooltip>
@@ -1440,7 +1443,7 @@ function TopBar({
             </TooltipTrigger>
             <TooltipContent>Cambiar modo claro/oscuro</TooltipContent>
           </Tooltip>
-          {userEmail && (
+          {(userEmail || isGuest) && (
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -1448,13 +1451,13 @@ function TopBar({
                     variant="outline"
                     size="icon"
                     onClick={onSignOut}
-                    aria-label="Cerrar sesión"
+                    aria-label={isGuest ? "Salir del modo invitado" : "Cerrar sesión"}
                   />
                 }
               >
                 <LogOut className="size-4" />
               </TooltipTrigger>
-              <TooltipContent>Cerrar sesión</TooltipContent>
+              <TooltipContent>{isGuest ? "Salir del modo invitado" : "Cerrar sesión"}</TooltipContent>
             </Tooltip>
           )}
         </div>
