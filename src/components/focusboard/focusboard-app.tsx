@@ -12,6 +12,8 @@ import {
   CalendarDays,
   CalendarPlus,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Circle,
   Clock3,
   Download,
@@ -80,7 +82,7 @@ const STORAGE_KEY = "focusboard:v1";
 const LOCAL_MODE_KEY = "focusboard:auth-mode";
 const ONBOARDING_KEY = "focusboard:onboarding-complete:v2";
 const BOARD_KEY = "default";
-const TODAY_ISO = "2026-05-01";
+const TODAY_ISO = toISODate(new Date());
 const CREATOR_LINKEDIN =
   "https://www.linkedin.com/in/ill%C3%A1n-iglesias-torres-5a0b5b291/";
 const navItems = [
@@ -114,7 +116,6 @@ const projectStatusLabels: Record<Project["status"], string> = {
   Review: "En revisión",
   Launch: "Lanzamiento",
 };
-const monthDays = Array.from({ length: 31 }, (_, index) => index + 1);
 const weeklyBars = [48, 68, 54, 83, 71, 36, 58];
 const emptyFocusBoard: FocusBoardState = {
   tasks: [],
@@ -266,7 +267,7 @@ export function FocusBoardApp() {
           ? {
               ...task,
               status: task.status === "done" ? "pending" : "done",
-              completedAt: task.status === "done" ? undefined : "2026-05-01",
+              completedAt: task.status === "done" ? undefined : TODAY_ISO,
             }
           : task,
       ),
@@ -285,7 +286,7 @@ export function FocusBoardApp() {
           ? {
               ...task,
               status,
-              completedAt: status === "done" ? "2026-05-01" : undefined,
+              completedAt: status === "done" ? TODAY_ISO : undefined,
             }
           : task,
       ),
@@ -2890,12 +2891,47 @@ function CalendarView({
   board: FocusBoardState;
   onSaveTask: (task: FocusTask) => void;
 }) {
-  const [mode, setMode] = useState("month");
+  const [mode, setMode] = useState<"month" | "week">("month");
   const [selectedDate, setSelectedDate] = useState(TODAY_ISO);
+  const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(parseISODate(TODAY_ISO)));
   const [quickTitle, setQuickTitle] = useState("");
   const [quickPriority, setQuickPriority] = useState<FocusTask["priority"]>("medium");
+  const monthDates = useMemo(() => getMonthDates(visibleMonth), [visibleMonth]);
+  const firstMonthOffset = getMondayOffset(visibleMonth);
+  const selectedWeekDates = useMemo(() => getWeekDates(parseISODate(selectedDate)), [selectedDate]);
   const selectedTasks = board.tasks.filter((task) => task.dueDate === selectedDate);
   const selectedEvents = board.events.filter((event) => event.date === selectedDate);
+  const selectedItems = [...selectedEvents, ...selectedTasks];
+  const selectedDateObject = parseISODate(selectedDate);
+  const monthLabel = formatMonthTitle(visibleMonth);
+
+  const getCalendarItems = (date: string) => [
+    ...board.events.filter((event) => event.date === date),
+    ...board.tasks.filter((task) => task.dueDate === date),
+  ];
+
+  const selectDate = (date: string) => {
+    setSelectedDate(date);
+    const nextDate = parseISODate(date);
+    if (
+      nextDate.getFullYear() !== visibleMonth.getFullYear() ||
+      nextDate.getMonth() !== visibleMonth.getMonth()
+    ) {
+      setVisibleMonth(startOfMonth(nextDate));
+    }
+  };
+
+  const moveMonth = (offset: number) => {
+    const nextMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + offset, 1);
+    setVisibleMonth(nextMonth);
+    setSelectedDate(toISODate(nextMonth));
+  };
+
+  const goToToday = () => {
+    const today = parseISODate(TODAY_ISO);
+    setVisibleMonth(startOfMonth(today));
+    setSelectedDate(TODAY_ISO);
+  };
 
   const createQuickTask = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -2921,80 +2957,148 @@ function CalendarView({
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
         <div>
-          <h2 className="text-2xl font-semibold">Calendario de mayo</h2>
-          <p className="text-sm text-muted-foreground">Una vista limpia de entregas, exámenes y tareas, coloreada por prioridad.</p>
+          <h2 className="text-2xl font-semibold">Calendario de {monthLabel}</h2>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Navega por cualquier mes o año y revisa tareas, entregas y exámenes con espacio suficiente para leerlos.
+          </p>
         </div>
-        <Tabs value={mode} onValueChange={setMode}>
-          <TabsList>
-            <TabsTrigger value="month">Mes</TabsTrigger>
-            <TabsTrigger value="week">Semana</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="grid grid-cols-[44px_1fr_44px] gap-2 sm:w-72">
+            <Button type="button" variant="outline" size="icon" onClick={() => moveMonth(-1)} aria-label="Mes anterior">
+              <ChevronLeft className="size-4" />
+            </Button>
+            <Button type="button" variant="outline" className="h-11" onClick={goToToday}>
+              Hoy
+            </Button>
+            <Button type="button" variant="outline" size="icon" onClick={() => moveMonth(1)} aria-label="Mes siguiente">
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+          <Tabs value={mode} onValueChange={(value) => setMode(value as "month" | "week")}>
+            <TabsList className="grid w-full grid-cols-2 sm:w-auto">
+              <TabsTrigger value="month">Mes</TabsTrigger>
+              <TabsTrigger value="week">Semana</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         {mode === "month" ? (
-          <div className="grid grid-cols-7 gap-2">
-            {["L", "M", "X", "J", "V", "S", "D"].map((day) => (
-              <div key={day} className="px-2 text-xs font-semibold text-muted-foreground">
-                {day}
-              </div>
-            ))}
-            <div className="hidden sm:block" />
-            <div className="hidden sm:block" />
-            <div className="hidden sm:block" />
-            <div className="hidden sm:block" />
-            {monthDays.map((day) => {
-              const date = `2026-05-${String(day).padStart(2, "0")}`;
-              const events = board.events.filter((item) => item.date === date);
-              const tasks = board.tasks.filter((task) => task.dueDate === date);
-              const active = selectedDate === date;
+          <div className="space-y-4">
+            <div className="hidden grid-cols-7 gap-2 md:grid">
+              {["L", "M", "X", "J", "V", "S", "D"].map((day) => (
+                <div key={day} className="px-2 text-xs font-semibold text-muted-foreground">
+                  {day}
+                </div>
+              ))}
+              {Array.from({ length: firstMonthOffset }, (_, index) => (
+                <div key={`blank-${index}`} className="min-h-24 rounded-lg border border-transparent" />
+              ))}
+              {monthDates.map((dateObject) => {
+                const date = toISODate(dateObject);
+                const items = getCalendarItems(date);
+                const active = selectedDate === date;
+                const isToday = date === TODAY_ISO;
 
-              return (
-                <motion.button
-                  key={day}
-                  type="button"
-                  whileHover={{ y: -2 }}
-                  onClick={() => setSelectedDate(date)}
-                  className={cn(
-                    "min-h-24 rounded-lg border p-2 text-left text-sm transition",
-                    active
-                      ? "border-cyan-300 bg-cyan-300/15 shadow-lg shadow-cyan-950/10"
-                      : "border-black/10 bg-white/60 hover:bg-white/85 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10",
-                  )}
-                >
-                  <div className="mb-2 font-mono text-xs text-muted-foreground">{day}</div>
-                  <div className="space-y-1">
-                    {[...events, ...tasks].slice(0, 3).map((item) => (
-                      <div
-                        key={item.id}
-                        className={cn(
-                          "truncate rounded-md px-2 py-1 text-[11px] font-medium",
-                          priorityMeta[item.priority].className,
-                        )}
-                      >
-                        {item.title}
+                return (
+                  <motion.button
+                    key={date}
+                    type="button"
+                    whileHover={{ y: -2 }}
+                    onClick={() => selectDate(date)}
+                    className={cn(
+                      "min-h-28 rounded-lg border p-2 text-left text-sm transition",
+                      active
+                        ? "border-cyan-300 bg-cyan-300/15 shadow-lg shadow-cyan-950/10"
+                        : "border-black/10 bg-white/60 hover:bg-white/85 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10",
+                    )}
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs text-muted-foreground">{dateObject.getDate()}</span>
+                      {isToday && <span className="rounded-full bg-cyan-300 px-2 py-0.5 text-[10px] font-semibold text-zinc-950">Hoy</span>}
+                    </div>
+                    <div className="space-y-1">
+                      {items.slice(0, 3).map((item) => (
+                        <div
+                          key={item.id}
+                          className={cn(
+                            "truncate rounded-md px-2 py-1 text-[11px] font-medium",
+                            priorityMeta[item.priority].className,
+                          )}
+                        >
+                          {item.title}
+                        </div>
+                      ))}
+                      {items.length > 3 && <div className="text-[11px] text-muted-foreground">+{items.length - 3} más</div>}
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </div>
+
+            <div className="space-y-3 md:hidden">
+              {monthDates.map((dateObject) => {
+                const date = toISODate(dateObject);
+                const items = getCalendarItems(date);
+                const active = selectedDate === date;
+
+                return (
+                  <button
+                    key={date}
+                    type="button"
+                    onClick={() => selectDate(date)}
+                    className={cn(
+                      "w-full rounded-lg border p-4 text-left transition",
+                      active
+                        ? "border-cyan-300 bg-cyan-300/15 shadow-lg shadow-cyan-950/10"
+                        : "border-black/10 bg-white/70 dark:border-white/10 dark:bg-white/5",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          {formatWeekday(date)}
+                        </div>
+                        <div className="mt-1 text-lg font-semibold">{formatReadableDate(date)}</div>
                       </div>
-                    ))}
-                  </div>
-                </motion.button>
-              );
-            })}
+                      <Badge variant="outline" className="shrink-0 border-black/10 bg-white/70 dark:border-white/10 dark:bg-white/5">
+                        {items.length ? `${items.length} item${items.length === 1 ? "" : "s"}` : "Libre"}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {items.length ? (
+                        items.map((item) => <CalendarItemPreview key={item.id} item={item} />)
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Sin tareas ni eventos para este día.</p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-7">
-            {Array.from({ length: 7 }, (_, index) => index + 1).map((day) => {
-              const date = `2026-05-${String(day).padStart(2, "0")}`;
-              const tasks = board.tasks.filter((task) => task.dueDate === date);
+            {selectedWeekDates.map((dateObject) => {
+              const date = toISODate(dateObject);
+              const items = getCalendarItems(date);
+              const active = selectedDate === date;
 
               return (
-                <button key={day} type="button" onClick={() => setSelectedDate(date)} className="text-left">
-                  <DashboardPanel title={`Día ${day}`} icon={Clock3}>
+                <button
+                  key={date}
+                  type="button"
+                  onClick={() => selectDate(date)}
+                  className={cn("rounded-lg text-left", active && "ring-2 ring-cyan-300")}
+                >
+                  <DashboardPanel title={formatWeekday(date)} icon={Clock3}>
+                    <div className="mb-3 text-lg font-semibold">{formatReadableDate(date)}</div>
                     <div className="space-y-2">
-                      {tasks.length ? (
-                        tasks.map((task) => <TaskSummary key={task.id} task={task} />)
+                      {items.length ? (
+                        items.map((item) => <CalendarItemPreview key={item.id} item={item} />)
                       ) : (
                         <EmptyState text="Libre" />
                       )}
@@ -3006,14 +3110,20 @@ function CalendarView({
           </div>
         )}
 
-        <DashboardPanel title={formatShortDate(selectedDate)} icon={CalendarPlus}>
+        <DashboardPanel title={formatReadableDate(selectedDate)} icon={CalendarPlus}>
           <div className="space-y-4">
+            <div className="rounded-lg border border-black/10 bg-white/55 p-3 dark:border-white/10 dark:bg-white/5">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Día seleccionado</div>
+              <div className="mt-1 text-lg font-semibold">
+                {new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(selectedDateObject)}
+              </div>
+            </div>
             <form onSubmit={createQuickTask} className="grid gap-2 sm:grid-cols-[1fr_150px_auto]">
               <input
                 value={quickTitle}
                 onChange={(event) => setQuickTitle(event.target.value)}
                 placeholder="Nueva tarea para este día"
-                className="h-10 min-w-0 flex-1 rounded-lg border border-black/10 bg-white/70 px-3 text-sm outline-none ring-cyan-300/40 transition focus:ring-4 dark:border-white/10 dark:bg-white/5"
+                className="h-11 min-w-0 rounded-lg border border-black/10 bg-white/70 px-3 text-base outline-none ring-cyan-300/40 transition focus:ring-4 sm:text-sm dark:border-white/10 dark:bg-white/5"
               />
               <select
                 value={quickPriority}
@@ -3027,18 +3137,12 @@ function CalendarView({
               </select>
               <Button type="submit" className="h-11 bg-cyan-300 text-zinc-950 hover:bg-cyan-200">
                 <Plus className="size-4" />
+                Añadir
               </Button>
             </form>
             <div className="space-y-2">
-              {[...selectedEvents, ...selectedTasks].length ? (
-                [...selectedEvents, ...selectedTasks].map((item) => (
-                  <div key={item.id} className="rounded-lg border border-black/10 bg-white/55 p-3 dark:border-white/10 dark:bg-white/5">
-                    <div className="text-sm font-medium">{item.title}</div>
-                    <div className="mt-2">
-                      <PriorityBadge priority={item.priority} />
-                    </div>
-                  </div>
-                ))
+              {selectedItems.length ? (
+                selectedItems.map((item) => <CalendarItemPreview key={item.id} item={item} expanded />)
               ) : (
                 <EmptyState text="Sin eventos. Puedes crear una tarea rápida arriba." />
               )}
@@ -3050,6 +3154,34 @@ function CalendarView({
   );
 }
 
+function CalendarItemPreview({
+  item,
+  expanded = false,
+}: {
+  item: FocusTask | FocusBoardState["events"][number];
+  expanded?: boolean;
+}) {
+  const isTask = "dueDate" in item;
+
+  return (
+    <div className="rounded-lg border border-black/10 bg-white/65 p-3 dark:border-white/10 dark:bg-white/5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold leading-5">{item.title}</div>
+          <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span>{isTask ? statusLabels[item.status] : item.type}</span>
+            {isTask && <span>{item.estimateMinutes} min</span>}
+            {isTask && expanded && <span>Dificultad {item.difficulty}/5</span>}
+          </div>
+        </div>
+        <PriorityBadge priority={item.priority} />
+      </div>
+      {isTask && expanded && item.description && (
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
+      )}
+    </div>
+  );
+}
 function TaskCard({
   task,
   compact = false,
@@ -3452,7 +3584,11 @@ function getDaysUntilDue(date: string) {
 }
 
 function getHabitWeekCount(habit: Habit) {
-  return habit.completions.filter((date) => date >= "2026-04-27" && date <= "2026-05-03").length;
+  const [weekStart, weekEnd] = getWeekRange(parseISODate(TODAY_ISO));
+  const startIso = toISODate(weekStart);
+  const endIso = toISODate(weekEnd);
+
+  return habit.completions.filter((date) => date >= startIso && date <= endIso).length;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -3499,9 +3635,77 @@ function describeSchedule(schedule: HabitSchedule) {
   return schedule.days.map((day) => labels[day]).join(" · ");
 }
 
+function toISODate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function parseISODate(date: string) {
+  return new Date(`${date}T12:00:00`);
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function getMondayOffset(date: Date) {
+  return (date.getDay() + 6) % 7;
+}
+
+function getMonthDates(month: Date) {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+  return Array.from({ length: daysInMonth }, (_, index) => new Date(year, monthIndex, index + 1));
+}
+
+function getWeekRange(date: Date) {
+  const start = new Date(date);
+  start.setDate(date.getDate() - getMondayOffset(date));
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+
+  return [start, end] as const;
+}
+
+function getWeekDates(date: Date) {
+  const [start] = getWeekRange(date);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const next = new Date(start);
+    next.setDate(start.getDate() + index);
+    return next;
+  });
+}
+
+function formatMonthTitle(date: Date) {
+  return new Intl.DateTimeFormat("es-ES", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatWeekday(date: string) {
+  return new Intl.DateTimeFormat("es-ES", {
+    weekday: "short",
+  }).format(parseISODate(date));
+}
+
+function formatReadableDate(date: string) {
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(parseISODate(date));
+}
+
 function formatShortDate(date: string) {
   return new Intl.DateTimeFormat("es-ES", {
     day: "numeric",
     month: "short",
-  }).format(new Date(`${date}T12:00:00`));
+  }).format(parseISODate(date));
 }

@@ -358,10 +358,11 @@ export const initialFocusBoard: FocusBoardState = {
   ],
 };
 
-export function getTaskScore(task: FocusTask, today = new Date("2026-05-01")) {
+export function getTaskScore(task: FocusTask, today = new Date()) {
   const due = new Date(`${task.dueDate}T12:00:00`);
+  const currentDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
   const msPerDay = 1000 * 60 * 60 * 24;
-  const daysUntilDue = Math.ceil((due.getTime() - today.getTime()) / msPerDay);
+  const daysUntilDue = Math.ceil((due.getTime() - currentDay.getTime()) / msPerDay);
   const urgency =
     daysUntilDue <= 0 ? 100 : daysUntilDue <= 1 ? 82 : daysUntilDue <= 3 ? 56 : 26;
   const difficultyPenalty = task.difficulty * 5;
