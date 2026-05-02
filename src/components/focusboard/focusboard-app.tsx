@@ -116,7 +116,6 @@ const projectStatusLabels: Record<Project["status"], string> = {
   Review: "En revisión",
   Launch: "Lanzamiento",
 };
-const weeklyBars = [48, 68, 54, 83, 71, 36, 58];
 const emptyFocusBoard: FocusBoardState = {
   tasks: [],
   subjects: [],
@@ -1552,6 +1551,8 @@ function DashboardView({
     .filter((task) => task.status !== "done")
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
     .slice(0, 4);
+  const weeklyProgress = getWeeklyProgress(board.tasks);
+  const weeklyTotal = weeklyProgress.reduce((total, day) => total + day.count, 0);
 
   return (
     <>
@@ -1628,18 +1629,42 @@ function DashboardView({
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)_minmax(320px,0.7fr)]">
         <DashboardPanel title="Progreso semanal" icon={BarChart3}>
-          <div className="flex h-44 items-end gap-2">
-            {weeklyBars.map((height, index) => (
-              <div key={index} className="flex flex-1 flex-col items-center gap-2">
-                <motion.div
-                  initial={{ height: 0 }}
-                  animate={{ height: `${height}%` }}
-                  transition={{ delay: index * 0.05, duration: 0.45 }}
-                  className="w-full rounded-t-lg bg-gradient-to-t from-cyan-500 to-amber-200"
-                />
-                <span className="text-xs text-muted-foreground">{["L", "M", "X", "J", "V", "S", "D"][index]}</span>
+          <div className="space-y-4">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <div className="text-3xl font-semibold">{weeklyTotal}</div>
+                <p className="text-xs text-muted-foreground">tareas completadas esta semana</p>
               </div>
-            ))}
+              <Badge variant="outline" className="border-black/10 bg-white/60 dark:border-white/10 dark:bg-white/5">
+                {formatWeekRangeLabel()}
+              </Badge>
+            </div>
+            <div className="flex h-44 items-end gap-2 rounded-lg border border-black/10 bg-white/45 p-3 dark:border-white/10 dark:bg-white/5">
+              {weeklyProgress.map((day, index) => (
+                <div key={day.date} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
+                  <div className="relative flex min-h-0 w-full flex-1 items-end overflow-hidden rounded-t-lg bg-slate-950/5 dark:bg-white/10">
+                    <motion.div
+                      initial={{ height: 4 }}
+                      animate={{ height: day.height }}
+                      transition={{ delay: index * 0.05, duration: 0.45, ease: "easeOut" }}
+                      className={cn(
+                        "w-full rounded-t-lg bg-gradient-to-t from-cyan-500 to-amber-200 shadow-sm",
+                        day.count === 0 && "from-slate-300 to-slate-200 opacity-70 dark:from-zinc-700 dark:to-zinc-600",
+                      )}
+                    />
+                  </div>
+                  <div className="text-center leading-none">
+                    <div className="text-xs font-semibold">{day.count}</div>
+                    <div className="mt-1 text-[11px] text-muted-foreground">{day.label}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {weeklyTotal === 0 && (
+              <p className="rounded-lg border border-dashed border-black/10 bg-white/45 p-3 text-sm text-muted-foreground dark:border-white/10 dark:bg-white/5">
+                Completa una tarea y aparecerá aquí al instante.
+              </p>
+            )}
           </div>
         </DashboardPanel>
 
@@ -3621,6 +3646,39 @@ function getRecommendationReasons(task: FocusTask) {
   ];
 }
 
+function getWeeklyProgress(tasks: FocusTask[]) {
+  const weekDates = getWeekDates(parseISODate(TODAY_ISO));
+  const completedCounts = new Map<string, number>();
+
+  tasks.forEach((task) => {
+    if (task.status !== "done" || !task.completedAt) {
+      return;
+    }
+
+    completedCounts.set(task.completedAt, (completedCounts.get(task.completedAt) ?? 0) + 1);
+  });
+
+  const counts = weekDates.map((date) => completedCounts.get(toISODate(date)) ?? 0);
+  const maxCount = Math.max(1, ...counts);
+
+  return weekDates.map((date, index) => {
+    const count = counts[index];
+    const percent = count === 0 ? 4 : Math.max(18, Math.round((count / maxCount) * 100));
+
+    return {
+      count,
+      date: toISODate(date),
+      height: `${percent}%`,
+      label: ["L", "M", "X", "J", "V", "S", "D"][index],
+    };
+  });
+}
+
+function formatWeekRangeLabel() {
+  const [start, end] = getWeekRange(parseISODate(TODAY_ISO));
+
+  return `${formatShortDate(toISODate(start))} - ${formatShortDate(toISODate(end))}`;
+}
 function getDaysUntilDue(date: string) {
   const due = new Date(`${date}T12:00:00`);
   const today = new Date(`${TODAY_ISO}T12:00:00`);
