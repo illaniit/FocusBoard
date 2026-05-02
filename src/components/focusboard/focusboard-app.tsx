@@ -894,6 +894,25 @@ function AuthGate({ auth }: { auth: ReturnType<typeof useFocusAuth> }) {
   );
 }
 
+function useLiveDate() {
+  const [date, setDate] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setDate(new Date()), 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return date;
+}
+
+function formatHeaderDate(date: Date) {
+  return new Intl.DateTimeFormat("es-ES", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
 function GlobalFilters({
   filters,
   resultCount,
@@ -1300,6 +1319,8 @@ function TopBar({
   onExport: () => void;
   onImport: (file: File) => Promise<void>;
 }) {
+  const liveDate = useLiveDate();
+
   return (
     <header className="sticky top-0 z-20 border-b border-black/10 bg-white/70 px-4 py-3 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/70 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between gap-3">
@@ -1339,10 +1360,12 @@ function TopBar({
         </div>
 
         <div className="hidden min-w-0 lg:block">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500 dark:text-zinc-500">
-            Viernes 1 mayo
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700/80 dark:text-cyan-200/80">
+            {formatHeaderDate(liveDate)}
           </p>
-          <h1 className="truncate text-xl font-semibold">Tu panel de foco diario</h1>
+          <h1 className="mt-0.5 truncate text-xl font-semibold tracking-normal">
+            Tu panel de foco diario
+          </h1>
         </div>
 
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
