@@ -116,10 +116,17 @@ const projectStatusLabels: Record<Project["status"], string> = {
 };
 const monthDays = Array.from({ length: 31 }, (_, index) => index + 1);
 const weeklyBars = [48, 68, 54, 83, 71, 36, 58];
+const emptyFocusBoard: FocusBoardState = {
+  tasks: [],
+  subjects: [],
+  projects: [],
+  habits: [],
+  events: [],
+};
 const fieldClassName =
-  "mt-2 h-10 w-full rounded-lg border border-black/10 bg-white/70 px-3 text-sm text-slate-950 outline-none ring-cyan-300/40 transition placeholder:text-slate-400 focus:ring-4 dark:border-white/10 dark:bg-white/5 dark:text-zinc-50 dark:placeholder:text-zinc-500";
+  "mt-2 h-11 w-full rounded-lg border border-black/10 bg-white/70 px-3 text-base text-slate-950 outline-none ring-cyan-300/40 transition placeholder:text-slate-400 focus:ring-4 sm:text-sm dark:border-white/10 dark:bg-white/5 dark:text-zinc-50 dark:placeholder:text-zinc-500";
 const selectClassName =
-  "mt-2 h-10 w-full rounded-lg border border-black/10 bg-white/90 px-3 text-sm text-slate-950 outline-none ring-cyan-300/40 transition focus:ring-4 dark:border-white/10 dark:bg-zinc-950 dark:text-zinc-50 [&_option]:bg-white [&_option]:text-slate-950 dark:[&_option]:bg-zinc-950 dark:[&_option]:text-zinc-50";
+  "mt-2 h-11 w-full rounded-lg border border-black/10 bg-white/90 px-3 text-base text-slate-950 outline-none ring-cyan-300/40 transition focus:ring-4 sm:text-sm dark:border-white/10 dark:bg-zinc-950 dark:text-zinc-50 [&_option]:bg-white [&_option]:text-slate-950 dark:[&_option]:bg-zinc-950 dark:[&_option]:text-zinc-50";
 
 export function FocusBoardApp() {
   const [view, setView] = useState<View>("dashboard");
@@ -135,7 +142,8 @@ export function FocusBoardApp() {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const auth = useFocusAuth();
   const storageKey = `${STORAGE_KEY}:${auth.user?.id ?? "guest"}`;
-  const [board, setBoard, boardHydrated] = useFocusBoard(storageKey);
+  const defaultBoard = auth.localMode ? initialFocusBoard : emptyFocusBoard;
+  const [board, setBoard, boardHydrated] = useFocusBoard(storageKey, defaultBoard);
   const [syncLabel, setSyncLabel] = useState(() =>
     isSupabaseConfigured()
       ? "Inicia sesión para sincronizar"
@@ -606,8 +614,8 @@ export function FocusBoardApp() {
   );
 }
 
-function useFocusBoard(storageKey: string) {
-  const [board, setBoard] = useState<FocusBoardState>(initialFocusBoard);
+function useFocusBoard(storageKey: string, defaultBoard: FocusBoardState) {
+  const [board, setBoard] = useState<FocusBoardState>(defaultBoard);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -619,13 +627,15 @@ function useFocusBoard(storageKey: string) {
         try {
           setBoard(normalizeBoard(JSON.parse(stored)));
         } catch {
-          setBoard(initialFocusBoard);
+          setBoard(defaultBoard);
         }
+      } else {
+        setBoard(defaultBoard);
       }
 
       setHydrated(true);
     });
-  }, [storageKey]);
+  }, [storageKey, defaultBoard]);
 
   useEffect(() => {
     if (hydrated) {
@@ -705,7 +715,7 @@ function useFocusAuth() {
     }
 
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -714,13 +724,7 @@ function useFocusAuth() {
       },
     });
     setLoading(false);
-    setAuthMessage(
-      error
-        ? error.message
-        : data.session
-          ? "Cuenta creada y sesión iniciada."
-          : "Cuenta creada. Revisa tu correo si Supabase exige confirmación.",
-    );
+    setAuthMessage(error ? error.message : "Cuenta creada. Entrando a tu tablero.");
   };
 
   const signOut = async () => {
@@ -768,6 +772,14 @@ function AuthGate({ auth }: { auth: ReturnType<typeof useFocusAuth> }) {
     }
   };
 
+  const submitLabel = auth.loading
+    ? mode === "login"
+      ? "Entrando..."
+      : "Creando cuenta..."
+    : mode === "login"
+      ? "Entrar"
+      : "Crear cuenta";
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_12%_8%,#67e8f9_0,transparent_30%),radial-gradient(circle_at_82%_14%,#fda4af_0,transparent_26%),linear-gradient(135deg,#09090b_0%,#111827_48%,#172554_100%)] px-4 py-8 text-white">
       <section className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
@@ -795,7 +807,7 @@ function AuthGate({ auth }: { auth: ReturnType<typeof useFocusAuth> }) {
         </motion.div>
 
         <Card className="!rounded-lg border-white/10 bg-white/10 text-white shadow-2xl shadow-cyan-950/30 backdrop-blur-2xl">
-          <CardHeader>
+          <CardHeader className="p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-2xl">
               <Target className="size-5 text-cyan-300" />
               {mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
@@ -832,10 +844,20 @@ function AuthGate({ auth }: { auth: ReturnType<typeof useFocusAuth> }) {
               </label>
               <Button
                 type="submit"
-                className="h-11 w-full bg-cyan-300 text-zinc-950 hover:bg-cyan-200"
+                aria-busy={auth.loading}
+                className={cn(
+                  "h-11 w-full bg-cyan-300 text-zinc-950 hover:bg-cyan-200",
+                  auth.loading && "cursor-wait ring-4 ring-cyan-200/40",
+                )}
                 disabled={auth.loading || !email || password.length < 6}
               >
-                {mode === "login" ? "Entrar" : "Registrarme"}
+                {auth.loading && (
+                  <span
+                    aria-hidden="true"
+                    className="size-4 animate-spin rounded-full border-2 border-zinc-950/30 border-t-zinc-950"
+                  />
+                )}
+                {submitLabel}
               </Button>
             </form>
 
@@ -1029,7 +1051,7 @@ function OnboardingOverlay({ onComplete }: { onComplete: (profiles: string[]) =>
         className="w-full max-w-3xl"
       >
         <Card className="!rounded-lg border-white/10 bg-white text-slate-950 shadow-2xl dark:bg-zinc-950 dark:text-zinc-50">
-          <CardHeader>
+          <CardHeader className="p-4 sm:p-6">
             <Badge className="w-fit bg-cyan-300 text-zinc-950">Primer arranque</Badge>
             <CardTitle className="text-3xl">Haz que FocusBoard empiece contigo.</CardTitle>
             <CardDescription>
@@ -1114,7 +1136,7 @@ function ConfirmOverlay({
         className="w-full max-w-md"
       >
         <Card className="!rounded-lg border-rose-300/30 bg-white text-slate-950 shadow-2xl dark:bg-zinc-950 dark:text-zinc-50">
-          <CardHeader>
+          <CardHeader className="p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="size-5 text-rose-500" />
               {action.title}
@@ -1524,7 +1546,7 @@ function DashboardView({
         {recommendationOpen && bestTask && (
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
             <Card className="!rounded-lg border-cyan-300/30 bg-white/85 text-slate-950 shadow-xl shadow-cyan-950/10 backdrop-blur-xl dark:border-cyan-300/20 dark:bg-zinc-950/80 dark:text-zinc-50">
-              <CardHeader>
+              <CardHeader className="p-4 sm:p-6">
                 <CardTitle className="flex items-center gap-2">
                   <Zap className="size-5 text-cyan-500" />
                   Siguiente paso recomendado
@@ -1631,6 +1653,7 @@ function TaskEditor({
   const [subjectId, setSubjectId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [tags, setTags] = useState("");
+  const [mobileEditorOpen, setMobileEditorOpen] = useState(false);
 
   useEffect(() => {
     if (!editingTask) {
@@ -1649,6 +1672,7 @@ function TaskEditor({
       setSubjectId(editingTask.subjectId ?? "");
       setProjectId(editingTask.projectId ?? "");
       setTags(editingTask.tags.join(", "));
+      setMobileEditorOpen(true);
     });
   }, [editingTask]);
 
@@ -1664,6 +1688,7 @@ function TaskEditor({
     setSubjectId("");
     setProjectId("");
     setTags("");
+    setMobileEditorOpen(false);
     onCancel();
   };
 
@@ -1696,9 +1721,25 @@ function TaskEditor({
     clearForm();
   };
 
+  const editorOpen = Boolean(editingTask) || mobileEditorOpen;
+
   return (
-    <Card className="!rounded-lg border-black/10 bg-white/75 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
-      <CardHeader>
+    <>
+      {!editorOpen && (
+        <button
+          type="button"
+          onClick={() => setMobileEditorOpen(true)}
+          className="flex w-full items-center justify-between rounded-lg border border-cyan-300/30 bg-cyan-300/12 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:bg-cyan-300/18 lg:hidden"
+        >
+          <span>
+            <span className="block text-base font-semibold">Crear una tarea</span>
+            <span className="mt-1 block text-sm text-muted-foreground">Añade lo esencial ahora y ajusta los detalles solo si los necesitas.</span>
+          </span>
+          <Plus className="size-5 text-cyan-500" />
+        </button>
+      )}
+      <Card className={cn("!rounded-lg border-black/10 bg-white/75 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5", !editorOpen && "hidden lg:block")}>
+      <CardHeader className="p-4 sm:p-6">
         <CardTitle className="flex items-center gap-2">
           {editingTask ? <Pencil className="size-4 text-cyan-500" /> : <Plus className="size-4 text-cyan-500" />}
           {editingTask ? "Editar tarea" : "Crear tarea"}
@@ -1707,9 +1748,9 @@ function TaskEditor({
           Convierte ideas sueltas en próximos pasos claros, con prioridad, fecha límite y contexto.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={submit} className="grid gap-3 lg:grid-cols-12">
-          <label className="block text-sm font-medium lg:col-span-4">
+      <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+        <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
+          <label className="block text-sm font-medium sm:col-span-2 lg:col-span-4">
             Título
             <input
               value={title}
@@ -1718,7 +1759,7 @@ function TaskEditor({
               className={selectClassName}
             />
           </label>
-          <label className="block text-sm font-medium lg:col-span-4">
+          <label className="hidden text-sm font-medium lg:col-span-4 lg:block">
             Descripción
             <input
               value={description}
@@ -1740,7 +1781,7 @@ function TaskEditor({
               <option value="low">Baja</option>
             </select>
           </label>
-          <label className="block text-sm font-medium lg:col-span-2">
+          <label className="hidden text-sm font-medium lg:col-span-2 lg:block">
             Estado
             <select
               value={status}
@@ -1753,7 +1794,7 @@ function TaskEditor({
               <option value="done">Hecho</option>
             </select>
           </label>
-          <label className="block text-sm font-medium lg:col-span-2">
+          <label className="hidden text-sm font-medium lg:col-span-2 lg:block">
             Tipo
             <select
               value={type}
@@ -1786,7 +1827,7 @@ function TaskEditor({
               className={selectClassName}
             />
           </label>
-          <label className="block text-sm font-medium lg:col-span-2">
+          <label className="hidden text-sm font-medium lg:col-span-2 lg:block">
             Dificultad
             <select
               value={difficulty}
@@ -1800,7 +1841,7 @@ function TaskEditor({
               ))}
             </select>
           </label>
-          <label className="block text-sm font-medium lg:col-span-2">
+          <label className="hidden text-sm font-medium lg:col-span-2 lg:block">
             Asignatura
             <select
               value={subjectId}
@@ -1815,7 +1856,7 @@ function TaskEditor({
               ))}
             </select>
           </label>
-          <label className="block text-sm font-medium lg:col-span-2">
+          <label className="hidden text-sm font-medium lg:col-span-2 lg:block">
             Proyecto
             <select
               value={projectId}
@@ -1830,7 +1871,7 @@ function TaskEditor({
               ))}
             </select>
           </label>
-          <label className="block text-sm font-medium lg:col-span-2">
+          <label className="hidden text-sm font-medium lg:col-span-2 lg:block">
             Etiquetas
             <input
               value={tags}
@@ -1839,20 +1880,115 @@ function TaskEditor({
               className={fieldClassName}
             />
           </label>
-          <div className="flex items-end gap-2 lg:col-span-2">
-            <Button type="submit" className="h-10 flex-1 bg-cyan-300 text-zinc-950 hover:bg-cyan-200">
+          <details className="rounded-lg border border-black/10 bg-white/55 p-3 text-sm sm:col-span-2 lg:hidden dark:border-white/10 dark:bg-white/5">
+            <summary className="cursor-pointer font-semibold">Opciones avanzadas</summary>
+            <div className="mt-3 grid gap-3">
+              <label className="block font-medium">
+                Descripción
+                <input
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Qué hay que hacer"
+                  className={selectClassName}
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block font-medium">
+                  Estado
+                  <select
+                    value={status}
+                    onChange={(event) => setStatus(event.target.value as TaskStatus)}
+                    className={selectClassName}
+                  >
+                    <option value="pending">Pendiente</option>
+                    <option value="in-progress">En progreso</option>
+                    <option value="blocked">Bloqueado</option>
+                    <option value="done">Hecho</option>
+                  </select>
+                </label>
+                <label className="block font-medium">
+                  Tipo
+                  <select
+                    value={type}
+                    onChange={(event) => setType(event.target.value as FocusTask["type"])}
+                    className={selectClassName}
+                  >
+                    <option value="task">Tarea</option>
+                    <option value="delivery">Entrega</option>
+                    <option value="exam">Examen</option>
+                    <option value="habit">Hábito</option>
+                  </select>
+                </label>
+              </div>
+              <label className="block font-medium">
+                Dificultad
+                <select
+                  value={difficulty}
+                  onChange={(event) => setDifficulty(Number(event.target.value) as FocusTask["difficulty"])}
+                  className={selectClassName}
+                >
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <option key={level} value={level}>
+                      {level}/5
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block font-medium">
+                Asignatura
+                <select
+                  value={subjectId}
+                  onChange={(event) => setSubjectId(event.target.value)}
+                  className={selectClassName}
+                >
+                  <option value="">Sin asignatura</option>
+                  {subjects.map((subject) => (
+                    <option key={subject.id} value={subject.id}>
+                      {subject.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block font-medium">
+                Proyecto
+                <select
+                  value={projectId}
+                  onChange={(event) => setProjectId(event.target.value)}
+                  className={selectClassName}
+                >
+                  <option value="">Sin proyecto</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block font-medium">
+                Etiquetas
+                <input
+                  value={tags}
+                  onChange={(event) => setTags(event.target.value)}
+                  placeholder="ux, examen"
+                  className={fieldClassName}
+                />
+              </label>
+            </div>
+          </details>          <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:items-end lg:col-span-2">
+            <Button type="submit" className="h-11 flex-1 bg-cyan-300 text-zinc-950 hover:bg-cyan-200">
               <Save className="size-4" />
               Guardar
             </Button>
-            {editingTask && (
-              <Button type="button" variant="outline" className="h-10" onClick={clearForm}>
+            {(editingTask || mobileEditorOpen) && (
+              <Button type="button" variant="outline" className="h-11" onClick={clearForm}>
                 Cancelar
               </Button>
             )}
           </div>
         </form>
       </CardContent>
-    </Card>
+      </Card>
+    </>
   );
 }
 
@@ -2005,7 +2141,7 @@ function SubjectsView({
           return (
             <motion.div key={subject.id} whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
               <Card className="!rounded-lg border-black/10 bg-white/75 shadow-sm dark:border-white/10 dark:bg-white/5">
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <div className={cn("mb-2 h-2 w-24 rounded-full bg-gradient-to-r", subject.color)} />
                   <CardTitle className="flex items-center justify-between gap-3">
                     {subject.name}
@@ -2078,7 +2214,7 @@ function ProjectsView({
           return (
             <motion.div key={project.id} whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
               <Card className="!rounded-lg border-black/10 bg-white/75 shadow-sm dark:border-white/10 dark:bg-white/5">
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <div className={cn("mb-2 h-2 w-24 rounded-full bg-gradient-to-r", project.color)} />
                   <CardTitle>{project.name}</CardTitle>
                   <CardDescription>{project.description}</CardDescription>
@@ -2188,15 +2324,15 @@ function SubjectEditor({
 
   return (
     <Card className="!rounded-lg border-black/10 bg-white/75 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
-      <CardHeader>
+      <CardHeader className="p-4 sm:p-6">
         <CardTitle className="flex items-center gap-2">
           {editingSubject ? <Pencil className="size-4 text-cyan-500" /> : <Plus className="size-4 text-cyan-500" />}
           {editingSubject ? "Editar asignatura" : "Crear asignatura"}
         </CardTitle>
         <CardDescription>Organiza entregas, exámenes y prioridades para ver cada asignatura con calma.</CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={submit} className="grid gap-3 lg:grid-cols-12">
+      <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+        <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
           <label className="block text-sm font-medium lg:col-span-3">
             Nombre
             <input value={name} onChange={(event) => setName(event.target.value)} className={fieldClassName} />
@@ -2311,7 +2447,7 @@ function ProjectEditor({
 
   return (
     <Card className="!rounded-lg border-black/10 bg-white/75 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
-      <CardHeader>
+      <CardHeader className="p-4 sm:p-6">
         <CardTitle className="flex items-center gap-2">
           {editingProject ? <Pencil className="size-4 text-cyan-500" /> : <Plus className="size-4 text-cyan-500" />}
           {editingProject ? "Editar proyecto" : "Crear proyecto"}
@@ -2320,8 +2456,8 @@ function ProjectEditor({
           Reúne estado, progreso y tareas. El enlace es opcional y sirve para abrir recursos externos como Figma, GitHub, Notion, Drive o Vercel.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={submit} className="grid gap-3 lg:grid-cols-12">
+      <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+        <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
           <label className="block text-sm font-medium lg:col-span-3">
             Nombre
             <input value={name} onChange={(event) => setName(event.target.value)} className={fieldClassName} />
@@ -2455,7 +2591,7 @@ function HabitsView({
   return (
     <section className="grid gap-5 xl:grid-cols-[0.9fr_1.3fr]">
       <Card className="!rounded-lg border-black/10 bg-white/75 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
-        <CardHeader>
+        <CardHeader className="p-4 sm:p-6">
           <CardTitle className="flex items-center gap-2">
             <Settings2 className="size-4 text-cyan-500 dark:text-cyan-300" />
             Configurar hábito
@@ -2553,7 +2689,7 @@ function HabitsView({
           return (
             <motion.div key={habit.id} layout whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
               <Card className="!rounded-lg border-black/10 bg-white/75 shadow-sm dark:border-white/10 dark:bg-white/5">
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className={cn("mb-3 size-3 rounded-full", habit.color)} />
@@ -2757,6 +2893,7 @@ function CalendarView({
   const [mode, setMode] = useState("month");
   const [selectedDate, setSelectedDate] = useState(TODAY_ISO);
   const [quickTitle, setQuickTitle] = useState("");
+  const [quickPriority, setQuickPriority] = useState<FocusTask["priority"]>("medium");
   const selectedTasks = board.tasks.filter((task) => task.dueDate === selectedDate);
   const selectedEvents = board.events.filter((event) => event.date === selectedDate);
 
@@ -2772,7 +2909,7 @@ function CalendarView({
       title: quickTitle.trim(),
       description: "Creada desde el calendario.",
       type: "task",
-      priority: "medium",
+      priority: quickPriority,
       status: "pending",
       dueDate: selectedDate,
       estimateMinutes: 45,
@@ -2871,14 +3008,24 @@ function CalendarView({
 
         <DashboardPanel title={formatShortDate(selectedDate)} icon={CalendarPlus}>
           <div className="space-y-4">
-            <form onSubmit={createQuickTask} className="flex gap-2">
+            <form onSubmit={createQuickTask} className="grid gap-2 sm:grid-cols-[1fr_150px_auto]">
               <input
                 value={quickTitle}
                 onChange={(event) => setQuickTitle(event.target.value)}
                 placeholder="Nueva tarea para este día"
                 className="h-10 min-w-0 flex-1 rounded-lg border border-black/10 bg-white/70 px-3 text-sm outline-none ring-cyan-300/40 transition focus:ring-4 dark:border-white/10 dark:bg-white/5"
               />
-              <Button type="submit" className="h-10 bg-cyan-300 text-zinc-950 hover:bg-cyan-200">
+              <select
+                value={quickPriority}
+                onChange={(event) => setQuickPriority(event.target.value as FocusTask["priority"])}
+                className={cn(selectClassName, "mt-0")}
+              >
+                <option value="urgent">Urgente</option>
+                <option value="high">Alta</option>
+                <option value="medium">Media</option>
+                <option value="low">Baja</option>
+              </select>
+              <Button type="submit" className="h-11 bg-cyan-300 text-zinc-950 hover:bg-cyan-200">
                 <Plus className="size-4" />
               </Button>
             </form>
@@ -3172,7 +3319,7 @@ function DashboardPanel({
   return (
     <motion.div whileHover={{ y: -3 }} transition={{ duration: 0.18, ease: "easeOut" }}>
       <Card className="!rounded-lg border-black/10 bg-white/70 shadow-sm backdrop-blur-xl transition-shadow hover:shadow-lg hover:shadow-cyan-950/5 dark:border-white/10 dark:bg-white/5">
-      <CardHeader>
+      <CardHeader className="p-4 sm:p-6">
         <CardTitle className="flex items-center gap-2">
           <Icon className="size-4 text-cyan-500 dark:text-cyan-300" />
           {title}

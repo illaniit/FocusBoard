@@ -1,4 +1,4 @@
-﻿# FocusBoard
+# FocusBoard
 
 FocusBoard is a modern personal productivity dashboard for organizing tasks, subjects, projects, habits, deadlines, and weekly progress in a visual workspace.
 
@@ -68,18 +68,12 @@ http://localhost:3005
 
 ## Supabase Setup
 
-The full setup guide is available in:
-
-[SUPABASE_DEPLOYMENT.md](./SUPABASE_DEPLOYMENT.md)
-
-Short version:
-
 1. Create a Supabase project.
 2. Copy your Project URL and publishable key.
 3. Run [supabase/schema.sql](./supabase/schema.sql) in the Supabase SQL Editor.
-4. Configure Supabase Auth redirect URLs for localhost and Vercel.
-5. Add the same environment variables to Vercel.
-6. Deploy.
+4. Disable email confirmation in Supabase Auth if you want accounts to enter immediately after sign-up.
+5. Configure Auth redirect URLs for localhost and your production Vercel domain.
+6. Add the required environment variables to Vercel and deploy.
 
 ## Security Notes
 
